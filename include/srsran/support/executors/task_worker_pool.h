@@ -33,6 +33,7 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <atomic>
 
 namespace srsran {
 
@@ -179,6 +180,39 @@ private:
   srslog::basic_logger& logger = srslog::fetch_basic_logger("ALL");
 };
 
+class time_record{
+public:
+  void update_exec_time(long t){
+    exec_time[exec_len] = t;
+    exec_len = (exec_len + 1) % 100;
+  }
+  void update_wait_time(long t){
+    wait_time[wait_len] = t;
+    wait_len = (wait_len + 1) % 100;
+  }
+  void update_pop_time(long t){
+    if(prev != 0){
+      pop_time_interval[pop_len] = t - prev;
+    }
+    prev = t;
+    pop_len = (pop_len + 1) % 100;
+  }
+  void update_length(long len){
+    task_len_queue[task_len] = len;
+    task_len = (task_len + 1) % 100;
+  }
+
+  std::vector<long> exec_time = std::vector<long>(100, 0);
+  int exec_len = 0;
+  std::vector<long> wait_time= std::vector<long>(100, 0);
+  int wait_len = 0;
+  std::vector<long> pop_time_interval= std::vector<long>(100, 0);
+  int pop_len = 0;
+  long prev = 0;
+  std::vector<long> task_len_queue= std::vector<long>(100, 0);
+  int task_len = 0;
+};
+
 /// \brief Simple pool of task workers/threads. The workers share the same queue of task and do not perform
 /// work-stealing.
 template <concurrent_queue_policy QueuePolicy = concurrent_queue_policy::lockfree_mpmc>
@@ -201,15 +235,19 @@ public:
     detail::base_worker_pool(nof_workers_, std::move(worker_pool_name), create_pop_loop_task(), prio, cpu_masks)
   {
     if(this->pool_name.find("up_phy_dl") != std::string::npos){
-      dl_logfile_stream.open("dl_result.txt", std::ios::out);
+      dl_logfile_stream.open("dl_result_DL.txt", std::ios::out);
+      //startThread(check_status());
     }
     else if(this->pool_name.find("pusch") != std::string::npos){
-      pusch_logfile_stream.open("pusch_result.txt", std::ios::out);
+      pusch_logfile_stream.open("pusch_result_UL.txt", std::ios::out);
     }
+    stop_flag.store(false);
+    
   }
   ~task_worker_pool();
 
-  bool check_poolname() { return this->pool_name.find("up_phy_dl") != std::string::npos || this->pool_name.find("pusch") != std::string::npos; }
+  bool check_poolname() { return this->pool_name.find("up_phy_dl") != std::string::npos 
+                        || this->pool_name.find("pusch") != std::string::npos; }
 
   /// \brief Push a new task to be processed by the worker pool. If the task queue is full, it skips the task and
   /// return false.
@@ -245,11 +283,21 @@ public:
 
   void thread_force_wake(unsigned index);
 
+  void startThread(const std::function<void()>& check){
+    check_loop = std::thread(check);
+  }
+
   std::fstream dl_logfile_stream;
   std::fstream pusch_logfile_stream;
 
+  std::atomic<bool> stop_flag;
+  std::thread check_loop;
+
+  time_record recorder;
+
 private:
   std::function<void()> create_pop_loop_task();
+  std::function<void()> check_status();
 
   srslog::basic_logger& logger = srslog::fetch_basic_logger("ALL");
 };
@@ -262,16 +310,12 @@ class task_worker_pool_executor final : public task_executor
 {
 public:
   task_worker_pool_executor() = default;
-  task_worker_pool_executor(task_worker_pool<QueuePolicy>& worker_pool_) : worker_pool(&worker_pool_), current(std::chrono::system_clock::now()) {}
+  task_worker_pool_executor(task_worker_pool<QueuePolicy>& worker_pool_) : worker_pool(&worker_pool_) {}
 
   SRSRAN_NODISCARD bool execute(unique_task task) override
   {
     // TODO: Shortpath if can_run_task_inline() returns true. This feature has been disabled while we don't correct the
-    //  use of .execute in some places.
-    if(worker_pool->pool_name.find("up_phy_dl") != std::string::npos){
-      //fmt::print("{}\n", worker_pool->pool_name);
-      singal();
-    }
+    //  use of .execute in some places.`··`
     return worker_pool->push_task(std::move(task));
   }
 
@@ -282,36 +326,6 @@ public:
 
 private:
   task_worker_pool<QueuePolicy>* worker_pool = nullptr;
-
-  void singal(){
-    auto now = std::chrono::system_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - current);
-
-    if(duration.count() > 10000){
-      if(!this->worker_pool->is_yield[2]){
-        this->thread_force_wake(2);
-        this->thread_force_wake(3);
-      }
-      else{
-        this->thread_force_sleep(2);
-        this->thread_force_sleep(3);
-        fmt::print("yield state turned to false\n");
-      }
-      current = now;
-    }
-  }
-
-  void thread_force_wake(int index){
-    std::unique_lock <std::mutex> lck(*(this->worker_pool->mtx[index]));
-    this->worker_pool->thread_force_wake(index);
-    this->worker_pool->cv[index]->notify_all();
-  }
-
-  void thread_force_sleep(int index){
-    this->worker_pool->thread_force_sleep(index);
-  }
-
-  std::chrono::system_clock::time_point current;
 };
 
 /// \brief Create task executor for basic \c task_worker_pool.

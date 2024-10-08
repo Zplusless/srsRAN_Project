@@ -42,22 +42,22 @@ detail::base_worker_pool::base_worker_pool(unsigned                             
     report_error_if_not(cpu_masks.size() == nof_workers_, "Wrong array of CPU masks provided");
   }
 
-  unsigned actual_workers = nof_workers_ / 2 ? nof_workers_ / 2 : 1;
+  //unsigned actual_workers = nof_workers_ / 2 ? nof_workers_ / 2 : 1;
   for(unsigned i = 0; i < nof_workers_; i++){
-    is_yield.push_back(!(i >= actual_workers && (worker_pool_name.find("up_phy_dl") != std::string::npos || worker_pool_name.find("pusch") != std::string::npos)));
+    //is_yield.push_back(!(i >= actual_workers && (worker_pool_name.find("up_phy_dl") != std::string::npos || worker_pool_name.find("pusch") != std::string::npos)));
+    is_yield.push_back(true);
     cv.emplace_back(new std::condition_variable());
     mtx.emplace_back(new std::mutex());
   }
+
   // Task dispatched to workers of the pool.
   for (unsigned i = 0; i != nof_workers_; ++i) {
-    // this->update_id();
     if (cpu_masks.empty()) {
       worker_threads.emplace_back(fmt::format("{}#{}", worker_pool_name, i), prio, run_tasks_job);
     } else {
       // Check whether a single mask for all workers should be used.
       os_sched_affinity_bitmask cpu_mask = (cpu_masks.size() == 1) ? cpu_masks[0] : cpu_masks[i];
       worker_threads.emplace_back(fmt::format("{}#{}", worker_pool_name, i), prio, cpu_mask, run_tasks_job);
-      //fmt::print("\nworking thread {}#{} is being emplaced\n", worker_pool_name, i);
     }
   }
 }
@@ -183,6 +183,10 @@ task_worker_pool<QueuePolicy>::~task_worker_pool()
 template <concurrent_queue_policy QueuePolicy>
 void task_worker_pool<QueuePolicy>::stop()
 {
+  if(!stop_flag.load(std::memory_order_relaxed)){
+    stop_flag.store(true);
+    check_loop.join();
+  }
   unsigned count = 0;
   for (unique_thread& w : worker_threads) {
     if (w.running()) {
@@ -225,16 +229,44 @@ std::function<void()> task_worker_pool<QueuePolicy>::create_pop_loop_task()
           dl_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "task finished execution, ";
           dl_logfile_stream << "wait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, ";
           dl_logfile_stream << "execute time is " << job.get_end_processing_time() - job.get_processing_time() << "us" << std::endl;
+          dl_logfile_stream << "push_task time is " << job.get_in_queue_time() << std::endl;
         }
         else{
           pusch_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "task finished execution, ";
           pusch_logfile_stream << "wait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, ";
           pusch_logfile_stream << "execute time is " << job.get_end_processing_time() - job.get_processing_time() << "us" << std::endl;
-        }        
+          pusch_logfile_stream << "push_task time is " << job.get_in_queue_time() << std::endl;
+        }
+        
+        recorder.update_exec_time(job.get_end_processing_time() - job.get_processing_time());
+        recorder.update_wait_time(job.get_processing_time() - job.get_in_queue_time());
+        recorder.update_pop_time(job.get_processing_time());
+        recorder.update_length(this->nof_pending_tasks());
       }
     }
   };
 
+}
+
+template <concurrent_queue_policy QueuePolicy>
+std::function<void()> task_worker_pool<QueuePolicy>::check_status()
+{
+  return [this]() {
+    auto current = std::chrono::system_clock::now();
+    while(!stop_flag.load(std::memory_order_relaxed)){
+      //fmt::print("entering up phy dl loop, {}\n", stop_flag.load());
+      auto now = std::chrono::system_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(now - current);
+
+      //fmt::print("{}\n", duration.count());
+      if(duration.count() >= 50){
+        //fmt::print("{}\n", recorder.exec_len);
+        //auto t = std::chrono::system_clock::to_time_t(now);
+        //std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << std::endl;
+        current = now;
+      } 
+    }
+  };
 }
 
 template <concurrent_queue_policy QueuePolicy>
@@ -298,7 +330,9 @@ template <concurrent_queue_policy QueuePolicy>
 void task_worker_pool<QueuePolicy>::thread_force_wake(unsigned index)
 {
   report_fatal_error_if_not(index < is_yield.size() && index >= 0, "Index of threads must be smaller than number of workers and greater than 0");
+  std::unique_lock <std::mutex> lck(*(this->mtx[index]));
   is_yield[index] = is_yield[index] | true;
+  this->cv[index]->notify_all();
 }
 
 // Explicit specializations of the task_worker_pool.
