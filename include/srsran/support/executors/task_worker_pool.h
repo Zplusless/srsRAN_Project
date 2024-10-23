@@ -204,10 +204,16 @@ public:
     prev = t;
   }
   void update_length(long len){
-    len_sum -= task_len_queue[exec_len];
+    //len_sum -= task_len_queue[exec_len];
+    if(task_len_queue[task_len] < len){
+      len_incre++;
+    }
+    else if(len_incre > 0){
+      len_incre--;
+    }
     task_len_queue[task_len] = len;
     task_len = (task_len + 1) % 100;
-    len_sum += len;
+    //len_sum += len;
   }
 
   std::vector<long> exec_time = std::vector<long>(100, 0);
@@ -223,6 +229,7 @@ public:
   std::vector<long> task_len_queue= std::vector<long>(100, 0);
   int task_len = 0;
   long len_sum = 0;
+  int len_incre = 0;
 };
 
 /// \brief Simple pool of task workers/threads. The workers share the same queue of task and do not perform

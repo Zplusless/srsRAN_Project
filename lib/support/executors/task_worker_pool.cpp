@@ -255,7 +255,7 @@ std::function<void()> task_worker_pool<QueuePolicy>::check_status()
 {
   return [this]() {
     auto current = std::chrono::system_clock::now();
-    unsigned cnt = (nof_workers == 1 ? nof_workers : nof_workers / 2);
+    unsigned cnt = (nof_workers() == 1 ? nof_workers() : nof_workers() / 2);
     while(!stop_flag.load(std::memory_order_relaxed)){
       //fmt::print("entering up phy dl loop, {}\n", stop_flag.load());
       auto now = std::chrono::system_clock::now();
@@ -263,10 +263,10 @@ std::function<void()> task_worker_pool<QueuePolicy>::check_status()
 
       //fmt::print("{}\n", duration.count());
       if(duration.count() >= 50){
-        if(cnt < nof_workers && recorder.){
-
+        if(recorder.len_incre > 5 && cnt < nof_workers()){
+          fmt::print("thread {} wake up\n", ++cnt);
+          thread_force_wake(cnt);
         }
-        //fmt::print("{}\n", recorder.exec_len);
         //auto t = std::chrono::system_clock::to_time_t(now);
         //std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << std::endl;
         current = now;
