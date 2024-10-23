@@ -42,10 +42,10 @@ detail::base_worker_pool::base_worker_pool(unsigned                             
     report_error_if_not(cpu_masks.size() == nof_workers_, "Wrong array of CPU masks provided");
   }
 
-  //unsigned actual_workers = nof_workers_ / 2 ? nof_workers_ / 2 : 1;
+  unsigned actual_workers = nof_workers_ / 2 ? nof_workers_ / 2 : 1;
   for(unsigned i = 0; i < nof_workers_; i++){
-    //is_yield.push_back(!(i >= actual_workers && (worker_pool_name.find("up_phy_dl") != std::string::npos || worker_pool_name.find("pusch") != std::string::npos)));
-    is_yield.push_back(true);
+    is_yield.push_back(!(i >= actual_workers && (worker_pool_name.find("up_phy_dl") != std::string::npos || worker_pool_name.find("pusch") != std::string::npos)));
+    // is_yield.push_back(true);
     cv.emplace_back(new std::condition_variable());
     mtx.emplace_back(new std::mutex());
   }
@@ -185,7 +185,9 @@ void task_worker_pool<QueuePolicy>::stop()
 {
   if(!stop_flag.load(std::memory_order_relaxed)){
     stop_flag.store(true);
-    check_loop.join();
+    if(check_loop.joinable()){
+      check_loop.join();
+    }
   }
   unsigned count = 0;
   for (unique_thread& w : worker_threads) {
@@ -253,6 +255,7 @@ std::function<void()> task_worker_pool<QueuePolicy>::check_status()
 {
   return [this]() {
     auto current = std::chrono::system_clock::now();
+    unsigned cnt = (nof_workers == 1 ? nof_workers : nof_workers / 2);
     while(!stop_flag.load(std::memory_order_relaxed)){
       //fmt::print("entering up phy dl loop, {}\n", stop_flag.load());
       auto now = std::chrono::system_clock::now();
@@ -260,6 +263,9 @@ std::function<void()> task_worker_pool<QueuePolicy>::check_status()
 
       //fmt::print("{}\n", duration.count());
       if(duration.count() >= 50){
+        if(cnt < nof_workers && recorder.){
+
+        }
         //fmt::print("{}\n", recorder.exec_len);
         //auto t = std::chrono::system_clock::to_time_t(now);
         //std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << std::endl;

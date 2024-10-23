@@ -183,34 +183,46 @@ private:
 class time_record{
 public:
   void update_exec_time(long t){
+    exec_sum -= exec_time[exec_len];
     exec_time[exec_len] = t;
     exec_len = (exec_len + 1) % 100;
+    exec_sum += t;
   }
   void update_wait_time(long t){
+    wait_sum -= wait_time[wait_len];
     wait_time[wait_len] = t;
     wait_len = (wait_len + 1) % 100;
+    wait_sum += t;
   }
   void update_pop_time(long t){
     if(prev != 0){
-      pop_time_interval[pop_len] = t - prev;
+      interval_sum -= pop_time_interval[exec_len];
+      pop_time_interval[interval_len] = t - prev;
+      interval_len = (interval_len + 1) % 100;
+      interval_sum += t;
     }
     prev = t;
-    pop_len = (pop_len + 1) % 100;
   }
   void update_length(long len){
+    len_sum -= task_len_queue[exec_len];
     task_len_queue[task_len] = len;
     task_len = (task_len + 1) % 100;
+    len_sum += len;
   }
 
   std::vector<long> exec_time = std::vector<long>(100, 0);
   int exec_len = 0;
+  long exec_sum = 0;
   std::vector<long> wait_time= std::vector<long>(100, 0);
   int wait_len = 0;
+  long wait_sum = 0;
   std::vector<long> pop_time_interval= std::vector<long>(100, 0);
-  int pop_len = 0;
+  int interval_len = 0;
+  long interval_sum = 0;
   long prev = 0;
   std::vector<long> task_len_queue= std::vector<long>(100, 0);
   int task_len = 0;
+  long len_sum = 0;
 };
 
 /// \brief Simple pool of task workers/threads. The workers share the same queue of task and do not perform
@@ -236,7 +248,7 @@ public:
   {
     if(this->pool_name.find("up_phy_dl") != std::string::npos){
       dl_logfile_stream.open("dl_result_DL.txt", std::ios::out);
-      //startThread(check_status());
+      startThread(check_status());
     }
     else if(this->pool_name.find("pusch") != std::string::npos){
       pusch_logfile_stream.open("pusch_result_UL.txt", std::ios::out);
