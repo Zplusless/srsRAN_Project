@@ -264,8 +264,8 @@ std::function<void()> task_worker_pool<QueuePolicy>::check_status()
       //fmt::print("{}\n", duration.count());
       if(duration.count() >= 50){
         if(recorder.len_incre > 5 && cnt < nof_workers()){
-          fmt::print("thread {} wake up\n", ++cnt);
           thread_force_wake(cnt);
+          fmt::print("thread {} wake up\n", ++cnt);
         }
         //auto t = std::chrono::system_clock::to_time_t(now);
         //std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << std::endl;
