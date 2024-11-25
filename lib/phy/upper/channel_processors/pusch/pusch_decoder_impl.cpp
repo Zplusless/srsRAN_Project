@@ -28,6 +28,8 @@
 #include "srsran/srsvec/bit.h"
 #include "srsran/srsvec/copy.h"
 #include "srsran/srsvec/zero.h"
+#include "../../../../du_high/adapters/timestamp_logger.h"
+#include "../../../../support/thread_controller.cpp"
 
 using namespace srsran;
 
@@ -91,6 +93,8 @@ pusch_decoder_buffer& pusch_decoder_impl::new_data(span<uint8_t>                
                                                    pusch_decoder_notifier&             notifier,
                                                    const pusch_decoder::configuration& cfg)
 {
+  create_time = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
   internal_states previous_state = current_state.exchange(internal_states::collecting);
   srsran_assert(previous_state == internal_states::idle,
                 "Invalid state. It was expected to be {} but it was {}.",
@@ -439,6 +443,11 @@ void pusch_decoder_impl::join_and_notify()
 
   // Finally report decoding result.
   result_notifier->on_sch_data(stats);
+
+  finish_time = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+  TimestampLogger::getInstance().log_timestamp("PUSCH task Create_Time", create_time, "PUSCH task Finish_Time", finish_time);
+  pusch_thread_controller::getInstance().update_task_time(create_time, finish_time);
 
   // Transition back to idle.
   internal_states previous_state = current_state.exchange(internal_states::idle);

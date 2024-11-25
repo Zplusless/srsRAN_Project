@@ -30,6 +30,7 @@ endif(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 ########################################################################
 cmake_minimum_required(VERSION 3.14)
 project(srsran)
+add_definitions(-DSRSRAN_L1_TRACE -DSRSRAN_L2_TRACE)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -31,6 +31,10 @@ add_library(srsran_downlink_processor
 target_link_libraries(srsran_downlink_processor
         srsran_instrumentation
         srsran_channel_processors)
+target_include_directories(srsran_downlink_processor
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}
+)
 
 add_library(srsran_uplink_processor
         uplink_processor_impl.cpp

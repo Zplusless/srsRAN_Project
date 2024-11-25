@@ -34,6 +34,7 @@
 #include <iomanip>
 #include <iostream>
 #include <atomic>
+#include <pthread.h>
 
 namespace srsran {
 
@@ -180,58 +181,6 @@ private:
   srslog::basic_logger& logger = srslog::fetch_basic_logger("ALL");
 };
 
-class time_record{
-public:
-  void update_exec_time(long t){
-    exec_sum -= exec_time[exec_len];
-    exec_time[exec_len] = t;
-    exec_len = (exec_len + 1) % 100;
-    exec_sum += t;
-  }
-  void update_wait_time(long t){
-    wait_sum -= wait_time[wait_len];
-    wait_time[wait_len] = t;
-    wait_len = (wait_len + 1) % 100;
-    wait_sum += t;
-  }
-  void update_pop_time(long t){
-    if(prev != 0){
-      interval_sum -= pop_time_interval[exec_len];
-      pop_time_interval[interval_len] = t - prev;
-      interval_len = (interval_len + 1) % 100;
-      interval_sum += t;
-    }
-    prev = t;
-  }
-  void update_length(long len){
-    //len_sum -= task_len_queue[exec_len];
-    if(task_len_queue[task_len] < len){
-      len_incre++;
-    }
-    else if(len_incre > 0){
-      len_incre--;
-    }
-    task_len_queue[task_len] = len;
-    task_len = (task_len + 1) % 100;
-    //len_sum += len;
-  }
-
-  std::vector<long> exec_time = std::vector<long>(100, 0);
-  int exec_len = 0;
-  long exec_sum = 0;
-  std::vector<long> wait_time= std::vector<long>(100, 0);
-  int wait_len = 0;
-  long wait_sum = 0;
-  std::vector<long> pop_time_interval= std::vector<long>(100, 0);
-  int interval_len = 0;
-  long interval_sum = 0;
-  long prev = 0;
-  std::vector<long> task_len_queue= std::vector<long>(100, 0);
-  int task_len = 0;
-  long len_sum = 0;
-  int len_incre = 0;
-};
-
 /// \brief Simple pool of task workers/threads. The workers share the same queue of task and do not perform
 /// work-stealing.
 template <concurrent_queue_policy QueuePolicy = concurrent_queue_policy::lockfree_mpmc>
@@ -259,9 +208,9 @@ public:
     }
     else if(this->pool_name.find("pusch") != std::string::npos){
       pusch_logfile_stream.open("pusch_result_UL.txt", std::ios::out);
+      startThread(check_status());
     }
     stop_flag.store(false);
-    
   }
   ~task_worker_pool();
 
@@ -276,6 +225,7 @@ public:
     if(check_poolname()){
       auto now = std::chrono::system_clock::now();
       task.set_in_queue_time(std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
+      task.set_queue_length(this->nof_pending_tasks());
     }
     bool flag = this->queue.try_push(std::move(task));
     return flag;
@@ -312,7 +262,7 @@ public:
   std::atomic<bool> stop_flag;
   std::thread check_loop;
 
-  time_record recorder;
+  //time_record recorder;
 
 private:
   std::function<void()> create_pop_loop_task();

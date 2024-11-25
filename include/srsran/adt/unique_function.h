@@ -159,7 +159,8 @@ public:
     : oper_ptr(other.oper_ptr),
       in_queue_time(other.in_queue_time), // 转移 in_queue_time
       processing_time(other.processing_time), // 转移 processing_time
-      end_processing_time(other.end_processing_time) // 转移 end_processing_time
+      end_processing_time(other.end_processing_time), // 转移 end_processing_time
+      queue_length(other.queue_length)
   {
     other.oper_ptr = &empty_table;
     oper_ptr->move(&other.buffer, &buffer);
@@ -175,6 +176,7 @@ public:
       in_queue_time = other.in_queue_time; // 转移 in_queue_time
       processing_time = other.processing_time; // 转移 processing_time
       end_processing_time = other.end_processing_time; // 转移 end_processing_time
+      queue_length = other.queue_length; 
       other.oper_ptr = &empty_table;
       oper_ptr->move(&other.buffer, &buffer);
     }
@@ -190,9 +192,11 @@ public:
   long get_in_queue_time() { return this->in_queue_time; }
   long get_processing_time() { return this->processing_time; }
   long get_end_processing_time() { return this->end_processing_time; }
+  long get_queue_length() { return this->queue_length; }
   void set_in_queue_time(long _in_queue_time) { this->in_queue_time = _in_queue_time; }
   void set_processing_time(long _processing_time) { this->processing_time = _processing_time; }
   void set_end_processing_time(long _end_processing_time) { this->end_processing_time = _end_processing_time; }
+  void set_queue_length(long _queue_length) { this->queue_length = _queue_length; }
 
 private:
   union {
@@ -203,6 +207,7 @@ private:
   long in_queue_time = 0;
   long processing_time = 0;
   long end_processing_time = 0;
+  long queue_length = 0;
 };
 
 template <typename R, typename... Args, size_t Capacity, bool ForbidAlloc>

@@ -48,7 +48,7 @@ public:
 
     if (description.type == event_type::LATE or description.type == event_type::UNDERFLOW or
         description.type == event_type::OVERFLOW) {
-      logger.warning("Real-time failure in RF: {}", description.type.to_string());
+      //logger.warning("Real-time failure in RF: {}", description.type.to_string());
     }
 
     static const auto& log_format_debug = "Real-time failure in RF: Type={} Source={} Timestamp={}";

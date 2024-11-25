@@ -23,6 +23,7 @@
 #include "srsran/support/executors/task_worker_pool.h"
 #include <future>
 #include <mutex>
+#include "../thread_controller.cpp"
 
 std::mutex incre_mutex;
 
@@ -228,22 +229,32 @@ std::function<void()> task_worker_pool<QueuePolicy>::create_pop_loop_task()
         auto t = std::chrono::system_clock::to_time_t(now);
         job.set_end_processing_time(std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
         if(this->pool_name.find("up_phy_dl") != std::string::npos){
-          dl_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "task finished execution, ";
-          dl_logfile_stream << "wait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, ";
-          dl_logfile_stream << "execute time is " << job.get_end_processing_time() - job.get_processing_time() << "us" << std::endl;
-          dl_logfile_stream << "push_task time is " << job.get_in_queue_time() << std::endl;
+          dl_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "\ttask finished execution, " 
+          << "\twait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, "
+          << "\texecute time is " << job.get_end_processing_time() - job.get_processing_time() << "us, "
+          << "\tpush_task time is " << job.get_in_queue_time() << ", \ttask finished time is " << job.get_end_processing_time()
+          << "\tqueue length when pushing tasks is " << job.get_queue_length() << ", \tqueue length when finishing tasks is " << this->nof_pending_tasks() << std::endl;
+          dl_thread_controller::getInstance().update_exec_time(job.get_end_processing_time() - job.get_processing_time());
+          dl_thread_controller::getInstance().update_wait_time(job.get_processing_time() - job.get_in_queue_time());
+          dl_thread_controller::getInstance().update_pop_time(job.get_processing_time());
+          dl_thread_controller::getInstance().update_length(this->nof_pending_tasks());
         }
         else{
-          pusch_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "task finished execution, ";
-          pusch_logfile_stream << "wait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, ";
-          pusch_logfile_stream << "execute time is " << job.get_end_processing_time() - job.get_processing_time() << "us" << std::endl;
-          pusch_logfile_stream << "push_task time is " << job.get_in_queue_time() << std::endl;
+          pusch_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "\ttask finished execution, "
+          << "\twait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, "
+          << "\texecute time is " << job.get_end_processing_time() - job.get_processing_time() << "us, "
+          << "\tpush_task time is " << job.get_in_queue_time() << ", \ttask finished time is " << job.get_end_processing_time() 
+          << "\tqueue length when pushing tasks is " << job.get_queue_length() << ", \tqueue length when finishing tasks is " << this->nof_pending_tasks() << std::endl;
+          pusch_thread_controller::getInstance().update_exec_time(job.get_end_processing_time() - job.get_processing_time());
+          pusch_thread_controller::getInstance().update_wait_time(job.get_processing_time() - job.get_in_queue_time());
+          pusch_thread_controller::getInstance().update_pop_time(job.get_processing_time());
+          pusch_thread_controller::getInstance().update_length(this->nof_pending_tasks());
         }
         
-        recorder.update_exec_time(job.get_end_processing_time() - job.get_processing_time());
-        recorder.update_wait_time(job.get_processing_time() - job.get_in_queue_time());
-        recorder.update_pop_time(job.get_processing_time());
-        recorder.update_length(this->nof_pending_tasks());
+        // recorder.update_exec_time(job.get_end_processing_time() - job.get_processing_time());
+        // recorder.update_wait_time(job.get_processing_time() - job.get_in_queue_time());
+        // recorder.update_pop_time(job.get_processing_time());
+        // recorder.update_length(this->nof_pending_tasks());
       }
     }
   };
@@ -257,18 +268,22 @@ std::function<void()> task_worker_pool<QueuePolicy>::check_status()
     auto current = std::chrono::system_clock::now();
     unsigned cnt = (nof_workers() == 1 ? nof_workers() : nof_workers() / 2);
     while(!stop_flag.load(std::memory_order_relaxed)){
-      //fmt::print("entering up phy dl loop, {}\n", stop_flag.load());
       auto now = std::chrono::system_clock::now();
       auto duration = std::chrono::duration_cast<std::chrono::microseconds>(now - current);
 
-      //fmt::print("{}\n", duration.count());
       if(duration.count() >= 50){
-        if(recorder.len_incre > 5 && cnt < nof_workers()){
-          thread_force_wake(cnt);
-          fmt::print("thread {} wake up\n", ++cnt);
+        if(this->pool_name.find("pusch") != std::string::npos){
+          if(pusch_thread_controller::getInstance().len_incre > 5 && cnt < nof_workers()){
+            thread_force_wake(cnt);
+            fmt::print("{} thread {} wake up\n", this->pool_name, ++cnt);
+          }
         }
-        //auto t = std::chrono::system_clock::to_time_t(now);
-        //std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << std::endl;
+        else{
+          if(dl_thread_controller::getInstance().len_incre > 5 && cnt < nof_workers()){
+            thread_force_wake(cnt);
+            fmt::print("{} thread {} wake up\n", this->pool_name, ++cnt);
+          }
+        }
         current = now;
       } 
     }
