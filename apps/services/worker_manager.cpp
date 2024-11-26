@@ -244,7 +244,7 @@ void worker_manager::create_du_executors(const gnb_appconfig& appcfg)
   }
 
   const upper_phy_threads_appconfig& upper_phy_threads_cfg = appcfg.expert_execution_cfg.threads.upper_threads;
-  create_du_low_executors(is_blocking_mode_active,
+  create_du_low_executors(false,
                           upper_phy_threads_cfg.nof_ul_threads,
                           upper_phy_threads_cfg.nof_dl_threads,
                           upper_phy_threads_cfg.nof_pusch_decoder_threads,
@@ -696,7 +696,7 @@ void worker_manager::create_ru_executors(const gnb_appconfig& appcfg)
     std::string             driver  = sdr_cfg.device_driver;
 
     create_lower_phy_executors((driver != "zmq") ? appcfg.expert_execution_cfg.threads.lower_threads.execution_profile
-                                                 : lower_phy_thread_profile::blocking,
+                                                 : lower_phy_thread_profile::quad,
                                appcfg.cells_cfg.size());
     return;
   }

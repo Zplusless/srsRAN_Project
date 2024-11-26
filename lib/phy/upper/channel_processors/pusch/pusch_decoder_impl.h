@@ -152,6 +152,9 @@ private:
     }
   }
 
+  long create_time;
+  long finish_time;
+  
   /// Current internal state.
   std::atomic<internal_states> current_state = {internal_states::idle};
   /// Pointer to an LDPC segmenter.

@@ -1,0 +1,896 @@
+diff --git a/.gitignore b/.gitignore
+deleted file mode 100644
+index 254f02cc4..000000000
+diff --git a/apps/gnb/gnb_appconfig.h b/apps/gnb/gnb_appconfig.h
+index 846a29c1e..939ed2645 100644
+--- a/apps/gnb/gnb_appconfig.h
++++ b/apps/gnb/gnb_appconfig.h
+@@ -915,13 +915,6 @@ struct test_mode_ue_appconfig {
+   unsigned i_1_1 = 0;
+   unsigned i_1_3 = 0;
+   unsigned i_2   = 0;
+-  std::string working_mode = "static";
+-  std::string path;
+-  double static_buffer_size = 10000000;
+-  unsigned min_buffer_size = 10000;
+-  unsigned max_buffer_size = 20000;
+-  unsigned buffer_step = 1000;
+-  unsigned buffer_interval = 2;
+ };
+ 
+ /// gNB app Test Mode configuration.
+diff --git a/apps/gnb/gnb_appconfig_cli11_schema.cpp b/apps/gnb/gnb_appconfig_cli11_schema.cpp
+index 5f155e3c8..9dcd099b0 100644
+--- a/apps/gnb/gnb_appconfig_cli11_schema.cpp
++++ b/apps/gnb/gnb_appconfig_cli11_schema.cpp
+@@ -1661,13 +1661,6 @@ static void configure_cli11_qos_args(CLI::App& app, qos_appconfig& qos_params)
+ 
+ static void configure_cli11_test_ue_mode_args(CLI::App& app, test_mode_ue_appconfig& test_params)
+ {
+-  auto mode_check = [](const std::string& value) -> std::string {
+-    if (value == "static" || value == "range" || value == "trace") {
+-      return {};
+-    }
+-    return "Invalid mode. Accepted values [static,range,trace]";
+-  };
+-  
+   app.add_option("--rnti", test_params.rnti, "C-RNTI (0x0 if not configured)")
+       ->capture_default_str()
+       ->check(CLI::Range(to_value((rnti_t::INVALID_RNTI)), to_value(rnti_t::MAX_CRNTI)));
+@@ -1708,47 +1701,6 @@ static void configure_cli11_test_ue_mode_args(CLI::App& app, test_mode_ue_appcon
+          "Precoder Matrix codebook index \"i_2\" to be forwarded to test UE, in the case of more than 2 antennas.")
+       ->capture_default_str()
+       ->check(CLI::Range(0, 3));
+-  app.add_option<std::string>(
+-          "--working_mode",
+-          test_params.working_mode,
+-          "working mode")
+-      ->capture_default_str()
+-      ->check(mode_check);
+-  app.add_option<std::string>(
+-          "--path",
+-          test_params.path,
+-          "path")
+-      ->capture_default_str();
+-  app.add_option(
+-          "--static_buffer_size",
+-          test_params.static_buffer_size,
+-          "buffer size in static mode, default value: 10000000")
+-      ->capture_default_str()
+-      ->check(CLI::Range(0,10000000));
+-  app.add_option(
+-          "--min_buffer_size",
+-          test_params.min_buffer_size,
+-          "the mininum value of DL buffer size")
+-      ->capture_default_str()
+-      ->check(CLI::Range(0,10000000));
+-  app.add_option(
+-          "--max_buffer_size",
+-          test_params.max_buffer_size,
+-          "the maxinum value of DL buffer size")
+-      ->capture_default_str()
+-      ->check(CLI::Range(0,10000000));
+-  app.add_option(
+-          "--buffer_step",
+-          test_params.buffer_step,
+-          "the increment of DL buffer size")
+-      ->capture_default_str()
+-      ->check(CLI::Range(0,10000000));
+-  app.add_option(
+-          "--buffer_interval",
+-          test_params.buffer_interval,
+-          "the mininum value of DL buffer size")
+-      ->capture_default_str()
+-      ->check(CLI::Range(0,10000000));
+ }
+ 
+ static void configure_cli11_test_mode_args(CLI::App& app, test_mode_appconfig& test_params)
+@@ -2453,21 +2405,21 @@ static void manage_ntn_optional(CLI::App&             app,
+   }
+ }
+ 
+-// static void manage_expert_execution_threads(CLI::App& app, gnb_appconfig& gnb_cfg)
+-// {
+-//   if (!variant_holds_alternative<ru_sdr_appconfig>(gnb_cfg.ru_cfg)) {
+-//     return;
+-//   }
++static void manage_expert_execution_threads(CLI::App& app, gnb_appconfig& gnb_cfg)
++{
++  if (!variant_holds_alternative<ru_sdr_appconfig>(gnb_cfg.ru_cfg)) {
++    return;
++  }
+ 
+-//   // Ignore the default settings based in the number of CPU cores for ZMQ.
+-//   if (variant_get<ru_sdr_appconfig>(gnb_cfg.ru_cfg).device_driver == "zmq") {
+-//     upper_phy_threads_appconfig& upper = gnb_cfg.expert_execution_cfg.threads.upper_threads;
+-//     upper.nof_pusch_decoder_threads    = 1;
+-//     upper.nof_ul_threads               = 1;
+-//     upper.nof_dl_threads               = 1;
+-//     gnb_cfg.expert_execution_cfg.threads.lower_threads.execution_profile = lower_phy_thread_profile::quad;
+-//   }
+-// }
++  // Ignore the default settings based in the number of CPU cores for ZMQ.
++  if (variant_get<ru_sdr_appconfig>(gnb_cfg.ru_cfg).device_driver == "zmq") {
++    upper_phy_threads_appconfig& upper = gnb_cfg.expert_execution_cfg.threads.upper_threads;
++    upper.nof_pusch_decoder_threads    = 0;
++    upper.nof_ul_threads               = 1;
++    upper.nof_dl_threads               = 1;
++    gnb_cfg.expert_execution_cfg.threads.lower_threads.execution_profile = lower_phy_thread_profile::blocking;
++  }
++}
+ 
+ /// Sets the request headroom size to the max processing delay value if the request headroom property was not parsed,
+ static void manage_max_request_headroom_size(CLI::App& app, gnb_appconfig& gnb_cfg)
+@@ -2694,6 +2646,6 @@ void srsran::configure_cli11_with_gnb_appconfig_schema(CLI::App& app, gnb_parsed
+     manage_hal_optional(app, gnb_cfg);
+     manage_ntn_optional(app, gnb_cfg, epoch_time, orbital_coordinates, ecef_coordinates);
+     manage_processing_delay(app, gnb_cfg);
+-    // manage_expert_execution_threads(app, gnb_cfg);
++    manage_expert_execution_threads(app, gnb_cfg);
+   });
+ }
+diff --git a/apps/modules/flexible_du/split_ru_dynamic/dynamic_du_factory.cpp b/apps/modules/flexible_du/split_ru_dynamic/dynamic_du_factory.cpp
+index 252c4515c..b2b84dec9 100644
+--- a/apps/modules/flexible_du/split_ru_dynamic/dynamic_du_factory.cpp
++++ b/apps/modules/flexible_du/split_ru_dynamic/dynamic_du_factory.cpp
+@@ -212,14 +212,7 @@ std::vector<std::unique_ptr<du>> srsran::make_gnb_dus(const gnb_appconfig&
+                                                  gnb_cfg.test_mode_cfg.test_ue.pmi,
+                                                  gnb_cfg.test_mode_cfg.test_ue.i_1_1,
+                                                  gnb_cfg.test_mode_cfg.test_ue.i_1_3,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.i_2,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.working_mode,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.path,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.static_buffer_size,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.min_buffer_size,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.max_buffer_size,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.buffer_step,
+-                                                 gnb_cfg.test_mode_cfg.test_ue.buffer_interval};
++                                                 gnb_cfg.test_mode_cfg.test_ue.i_2};
+     }
+     // FAPI configuration.
+     du_cfg.fapi.log_level = gnb_cfg.log_cfg.fapi_level;
+diff --git a/apps/services/worker_manager.cpp b/apps/services/worker_manager.cpp
+index 634316cca..9cb42948c 100644
+--- a/apps/services/worker_manager.cpp
++++ b/apps/services/worker_manager.cpp
+@@ -244,7 +244,7 @@ void worker_manager::create_du_executors(const gnb_appconfig& appcfg)
+   }
+ 
+   const upper_phy_threads_appconfig& upper_phy_threads_cfg = appcfg.expert_execution_cfg.threads.upper_threads;
+-  create_du_low_executors(false,
++  create_du_low_executors(is_blocking_mode_active,
+                           upper_phy_threads_cfg.nof_ul_threads,
+                           upper_phy_threads_cfg.nof_dl_threads,
+                           upper_phy_threads_cfg.nof_pusch_decoder_threads,
+@@ -696,7 +696,7 @@ void worker_manager::create_ru_executors(const gnb_appconfig& appcfg)
+     std::string             driver  = sdr_cfg.device_driver;
+ 
+     create_lower_phy_executors((driver != "zmq") ? appcfg.expert_execution_cfg.threads.lower_threads.execution_profile
+-                                                 : lower_phy_thread_profile::quad,
++                                                 : lower_phy_thread_profile::blocking,
+                                appcfg.cells_cfg.size());
+     return;
+   }
+diff --git a/include/srsran/adt/unique_function.h b/include/srsran/adt/unique_function.h
+index 6b9472bfe..913740418 100644
+--- a/include/srsran/adt/unique_function.h
++++ b/include/srsran/adt/unique_function.h
+@@ -155,11 +155,7 @@ public:
+     ptr      = static_cast<void*>(new FunT{std::forward<T>(function)});
+   }
+ 
+-  unique_function(unique_function&& other) noexcept
+-    : oper_ptr(other.oper_ptr),
+-      in_queue_time(other.in_queue_time), // 转移 in_queue_time
+-      processing_time(other.processing_time), // 转移 processing_time
+-      end_processing_time(other.end_processing_time) // 转移 end_processing_time
++  unique_function(unique_function&& other) noexcept : oper_ptr(other.oper_ptr)
+   {
+     other.oper_ptr = &empty_table;
+     oper_ptr->move(&other.buffer, &buffer);
+@@ -169,15 +165,10 @@ public:
+ 
+   unique_function& operator=(unique_function&& other) noexcept
+   {
+-    if (this != &other) {
+-      oper_ptr->dtor(&buffer);
+-      oper_ptr = other.oper_ptr;
+-      in_queue_time = other.in_queue_time; // 转移 in_queue_time
+-      processing_time = other.processing_time; // 转移 processing_time
+-      end_processing_time = other.end_processing_time; // 转移 end_processing_time
+-      other.oper_ptr = &empty_table;
+-      oper_ptr->move(&other.buffer, &buffer);
+-    }
++    oper_ptr->dtor(&buffer);
++    oper_ptr       = other.oper_ptr;
++    other.oper_ptr = &empty_table;
++    oper_ptr->move(&other.buffer, &buffer);
+     return *this;
+   }
+ 
+@@ -187,22 +178,12 @@ public:
+   bool is_empty() const noexcept { return oper_ptr == &empty_table; }
+   bool is_in_small_buffer() const noexcept { return oper_ptr->is_in_small_buffer(); }
+ 
+-  long get_in_queue_time() { return this->in_queue_time; }
+-  long get_processing_time() { return this->processing_time; }
+-  long get_end_processing_time() { return this->end_processing_time; }
+-  void set_in_queue_time(long _in_queue_time) { this->in_queue_time = _in_queue_time; }
+-  void set_processing_time(long _processing_time) { this->processing_time = _processing_time; }
+-  void set_end_processing_time(long _end_processing_time) { this->end_processing_time = _end_processing_time; }
+-
+ private:
+   union {
+     mutable storage_t buffer;
+     void*             ptr;
+   };
+   const oper_table_t* oper_ptr;
+-  long in_queue_time = 0;
+-  long processing_time = 0;
+-  long end_processing_time = 0;
+ };
+ 
+ template <typename R, typename... Args, size_t Capacity, bool ForbidAlloc>
+diff --git a/include/srsran/du/du_test_config.h b/include/srsran/du/du_test_config.h
+index 826f456b5..a717365c6 100644
+--- a/include/srsran/du/du_test_config.h
++++ b/include/srsran/du/du_test_config.h
+@@ -41,13 +41,6 @@ struct du_test_config {
+     unsigned           i_1_1;
+     optional<unsigned> i_1_3;
+     unsigned           i_2;
+-    std::string        working_mode;
+-    std::string        path;
+-    double             static_buffer_size;
+-    unsigned           min_buffer_size;
+-    unsigned           max_buffer_size;
+-    unsigned           buffer_step;
+-    unsigned           buffer_interval;
+   };
+ 
+   /// \brief Creation of a phantom UE for testing purposes.
+diff --git a/include/srsran/support/executors/task_worker_pool.h b/include/srsran/support/executors/task_worker_pool.h
+index 0d1213485..39d6fca84 100644
+--- a/include/srsran/support/executors/task_worker_pool.h
++++ b/include/srsran/support/executors/task_worker_pool.h
+@@ -27,13 +27,6 @@
+ #include "srsran/adt/mutexed_mpmc_queue.h"
+ #include "srsran/support/executors/detail/priority_task_queue.h"
+ #include "srsran/support/executors/task_executor.h"
+-#include <condition_variable>
+-#include <mutex>
+-#include <fstream>
+-#include <ctime>
+-#include <iomanip>
+-#include <iostream>
+-#include <atomic>
+ 
+ namespace srsran {
+ 
+@@ -62,24 +55,10 @@ public:
+   /// Determines whether the caller is inside the pool.
+   bool is_in_thread_pool() const;
+ 
+-  unsigned update_id();
+-
+-  unsigned get_id(){
+-    return this->id;
+-  }
+-
+   std::string pool_name;
+ 
+-  std::vector<bool> is_yield;
+-
+-  std::vector<std::condition_variable*> cv;
+-
+-  std::vector<std::mutex*> mtx;
+-
+   // List of workers belonging to the worker pool.
+   std::vector<unique_thread> worker_threads;
+-
+-  int id = 0;
+ };
+ 
+ class base_priority_task_queue
+@@ -180,58 +159,6 @@ private:
+   srslog::basic_logger& logger = srslog::fetch_basic_logger("ALL");
+ };
+ 
+-class time_record{
+-public:
+-  void update_exec_time(long t){
+-    exec_sum -= exec_time[exec_len];
+-    exec_time[exec_len] = t;
+-    exec_len = (exec_len + 1) % 100;
+-    exec_sum += t;
+-  }
+-  void update_wait_time(long t){
+-    wait_sum -= wait_time[wait_len];
+-    wait_time[wait_len] = t;
+-    wait_len = (wait_len + 1) % 100;
+-    wait_sum += t;
+-  }
+-  void update_pop_time(long t){
+-    if(prev != 0){
+-      interval_sum -= pop_time_interval[exec_len];
+-      pop_time_interval[interval_len] = t - prev;
+-      interval_len = (interval_len + 1) % 100;
+-      interval_sum += t;
+-    }
+-    prev = t;
+-  }
+-  void update_length(long len){
+-    //len_sum -= task_len_queue[exec_len];
+-    if(task_len_queue[task_len] < len){
+-      len_incre++;
+-    }
+-    else if(len_incre > 0){
+-      len_incre--;
+-    }
+-    task_len_queue[task_len] = len;
+-    task_len = (task_len + 1) % 100;
+-    //len_sum += len;
+-  }
+-
+-  std::vector<long> exec_time = std::vector<long>(100, 0);
+-  int exec_len = 0;
+-  long exec_sum = 0;
+-  std::vector<long> wait_time= std::vector<long>(100, 0);
+-  int wait_len = 0;
+-  long wait_sum = 0;
+-  std::vector<long> pop_time_interval= std::vector<long>(100, 0);
+-  int interval_len = 0;
+-  long interval_sum = 0;
+-  long prev = 0;
+-  std::vector<long> task_len_queue= std::vector<long>(100, 0);
+-  int task_len = 0;
+-  long len_sum = 0;
+-  int len_incre = 0;
+-};
+-
+ /// \brief Simple pool of task workers/threads. The workers share the same queue of task and do not perform
+ /// work-stealing.
+ template <concurrent_queue_policy QueuePolicy = concurrent_queue_policy::lockfree_mpmc>
+@@ -253,33 +180,14 @@ public:
+     detail::base_task_queue<QueuePolicy>(qsize_, wait_sleep_time),
+     detail::base_worker_pool(nof_workers_, std::move(worker_pool_name), create_pop_loop_task(), prio, cpu_masks)
+   {
+-    if(this->pool_name.find("up_phy_dl") != std::string::npos){
+-      dl_logfile_stream.open("dl_result_DL.txt", std::ios::out);
+-      startThread(check_status());
+-    }
+-    else if(this->pool_name.find("pusch") != std::string::npos){
+-      pusch_logfile_stream.open("pusch_result_UL.txt", std::ios::out);
+-    }
+-    stop_flag.store(false);
+-    
+   }
+   ~task_worker_pool();
+ 
+-  bool check_poolname() { return this->pool_name.find("up_phy_dl") != std::string::npos 
+-                        || this->pool_name.find("pusch") != std::string::npos; }
+-
+   /// \brief Push a new task to be processed by the worker pool. If the task queue is full, it skips the task and
+   /// return false.
+   /// \param task Task to be run in the thread pool.
+   /// \return True if task was successfully enqueued to be processed. False, if task queue is full.
+-  SRSRAN_NODISCARD bool push_task(unique_task task) {
+-    if(check_poolname()){
+-      auto now = std::chrono::system_clock::now();
+-      task.set_in_queue_time(std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
+-    }
+-    bool flag = this->queue.try_push(std::move(task));
+-    return flag;
+-  }
++  SRSRAN_NODISCARD bool push_task(unique_task task) { return this->queue.try_push(std::move(task)); }
+ 
+   /// \brief Push a new task to be processed by the worker pool. If the task queue is full, blocks.
+   /// \param task Task to be run in the thread pool.
+@@ -298,25 +206,8 @@ public:
+   /// those tasks are not accounted for in the waiting.
+   void wait_pending_tasks();
+ 
+-  void thread_force_sleep(unsigned index);
+-
+-  void thread_force_wake(unsigned index);
+-
+-  void startThread(const std::function<void()>& check){
+-    check_loop = std::thread(check);
+-  }
+-
+-  std::fstream dl_logfile_stream;
+-  std::fstream pusch_logfile_stream;
+-
+-  std::atomic<bool> stop_flag;
+-  std::thread check_loop;
+-
+-  time_record recorder;
+-
+ private:
+   std::function<void()> create_pop_loop_task();
+-  std::function<void()> check_status();
+ 
+   srslog::basic_logger& logger = srslog::fetch_basic_logger("ALL");
+ };
+@@ -334,7 +225,7 @@ public:
+   SRSRAN_NODISCARD bool execute(unique_task task) override
+   {
+     // TODO: Shortpath if can_run_task_inline() returns true. This feature has been disabled while we don't correct the
+-    //  use of .execute in some places.`··`
++    //  use of .execute in some places.
+     return worker_pool->push_task(std::move(task));
+   }
+ 
+diff --git a/lib/du_high/adapters/mac_test_mode_adapter.cpp b/lib/du_high/adapters/mac_test_mode_adapter.cpp
+index 89474ed12..6ab9bb3c9 100644
+--- a/lib/du_high/adapters/mac_test_mode_adapter.cpp
++++ b/lib/du_high/adapters/mac_test_mode_adapter.cpp
+@@ -28,13 +28,12 @@
+ #include "srsran/scheduler/harq_id.h"
+ #include <functional>
+ #include <utility>
+-#include <iostream>
+ 
+ using namespace srsran;
+ 
+ // Buffer state that the fake RLC will report to the MAC. This value should be large enough for the scheduler to fill
+ // the largest TB possible.
+-// static const unsigned TEST_UE_DL_BUFFER_STATE_UPDATE_SIZE = 1000000;
++static const unsigned TEST_UE_DL_BUFFER_STATE_UPDATE_SIZE = 10000000;
+ 
+ static expected<mac_rx_data_indication> create_test_pdu_with_bsr(slot_point sl_rx, rnti_t test_rnti, harq_id_t harq_id)
+ {
+@@ -62,7 +61,7 @@ class test_ue_mac_sdu_tx_builder_adapter : public mac_sdu_tx_builder
+   static constexpr unsigned TX_SDU_MAX_SIZE = 5000;
+ 
+ public:
+-  test_ue_mac_sdu_tx_builder_adapter(std::shared_ptr<test_mode_buffer_size> container) : buffer_size_container(container)
++  test_ue_mac_sdu_tx_builder_adapter()
+   {
+     report_fatal_error_if_not(tx_sdu.append(std::vector<uint8_t>(TX_SDU_MAX_SIZE, 0)),
+                               "Unable to allocate byte buffer");
+@@ -74,11 +73,10 @@ public:
+     return 0;
+   }
+ 
+-  unsigned on_buffer_state_update() override { return buffer_size_container->get_buffer_size();}
++  unsigned on_buffer_state_update() override { return TEST_UE_DL_BUFFER_STATE_UPDATE_SIZE; }
+ 
+ private:
+   byte_buffer tx_sdu = {};
+-  std::shared_ptr<test_mode_buffer_size> buffer_size_container;
+ };
+ 
+ mac_test_mode_cell_adapter::mac_test_mode_cell_adapter(const srs_du::du_test_config::test_ue_config& test_ue_cfg_,
+@@ -527,15 +525,6 @@ mac_test_mode_adapter::mac_test_mode_adapter(const srs_du::du_test_config::test_
+   phy_notifier(std::make_unique<phy_test_mode_adapter>(phy_notifier_)),
+   ue_info_mgr(test_ue.rnti, test_ue.nof_ues)
+ {
+-  if(test_ue.working_mode == "static"){
+-    buffer_size_container = std::make_shared<static_test_mode>(test_ue.static_buffer_size);
+-  }
+-  else if (test_ue.working_mode == "range"){
+-    buffer_size_container = std::make_shared<range_test_mode>(test_ue);
+-  }
+-  else if (test_ue.working_mode == "trace"){
+-    buffer_size_container = std::make_shared<trace_test_mode>(test_ue.path);
+-  }
+ }
+ 
+ mac_test_mode_adapter::~mac_test_mode_adapter() = default;
+@@ -553,7 +542,7 @@ void mac_test_mode_adapter::add_cell(const mac_cell_creation_request& cell_cfg)
+   // Create the cell in the MAC test mode.
+   auto func_dl_bs_push = [this](rnti_t rnti) {
+     get_ue_control_info_handler().handle_dl_buffer_state_update(
+-        {ue_info_mgr.rnti_to_du_ue_idx(rnti), lcid_t::LCID_SRB1, unsigned(buffer_size_container->get_buffer_size())});
++        {ue_info_mgr.rnti_to_du_ue_idx(rnti), lcid_t::LCID_SRB1, TEST_UE_DL_BUFFER_STATE_UPDATE_SIZE});
+   };
+   auto new_cell =
+       std::make_unique<mac_test_mode_cell_adapter>(test_ue,
+@@ -599,8 +588,7 @@ void mac_test_mode_adapter::handle_dl_buffer_state_update(const mac_dl_buffer_st
+   mac_dl_buffer_state_indication_message dl_bs_copy = dl_bs;
+   if (ue_info_mgr.is_test_ue(dl_bs.ue_index) and test_ue.pdsch_active and dl_bs.lcid != LCID_SRB0) {
+     // It is the test UE. Set a positive DL buffer state if PDSCH is set to "activated".
+-    dl_bs_copy.bs = this->buffer_size_container->get_buffer_size();
+-    fmt::print("dl_bs_copy.bs={}\n",dl_bs_copy.bs);
++    dl_bs_copy.bs = TEST_UE_DL_BUFFER_STATE_UPDATE_SIZE;
+   }
+   mac_adapted->get_ue_control_info_handler().handle_dl_buffer_state_update(dl_bs_copy);
+ }
+@@ -608,8 +596,8 @@ void mac_test_mode_adapter::handle_dl_buffer_state_update(const mac_dl_buffer_st
+ std::vector<mac_logical_channel_config>
+ mac_test_mode_adapter::adapt_bearers(const std::vector<mac_logical_channel_config>& orig_bearers)
+ {
++  static test_ue_mac_sdu_tx_builder_adapter dl_adapter;
+ 
+-  static test_ue_mac_sdu_tx_builder_adapter dl_adapter = test_ue_mac_sdu_tx_builder_adapter(buffer_size_container);
+   auto test_ue_adapted_bearers = orig_bearers;
+   for (auto& bearer : test_ue_adapted_bearers) {
+     if (bearer.lcid != lcid_t::LCID_SRB0) {
+@@ -618,6 +606,7 @@ mac_test_mode_adapter::adapt_bearers(const std::vector<mac_logical_channel_confi
+       }
+     }
+   }
++
+   return test_ue_adapted_bearers;
+ }
+ 
+diff --git a/lib/du_high/adapters/mac_test_mode_adapter.h b/lib/du_high/adapters/mac_test_mode_adapter.h
+index fa96c59c1..4cfad0dfc 100644
+--- a/lib/du_high/adapters/mac_test_mode_adapter.h
++++ b/lib/du_high/adapters/mac_test_mode_adapter.h
+@@ -26,16 +26,6 @@
+ #include "srsran/mac/mac.h"
+ #include "srsran/mac/mac_cell_result.h"
+ #include <unordered_map>
+-#include <chrono>
+-#include <istream>
+-#include <streambuf>
+-#include <fstream>
+-#include <sstream>
+-#include <vector>
+-#include <string>
+-#include <stdlib.h>
+-#include <math.h>
+-static const unsigned TEST_UE_DL_BUFFER_STATE_UPDATE_SIZE = 1000000;
+ 
+ namespace srsran {
+ 
+@@ -199,100 +189,6 @@ private:
+   test_ue_info_manager& ue_info_mgr;
+ };
+ 
+-class test_mode_buffer_size{
+-public:
+-  virtual ~test_mode_buffer_size() = default;
+-  virtual double get_buffer_size() = 0;
+-};
+-
+-class static_test_mode : public test_mode_buffer_size {
+-public:
+-  static_test_mode(double _static_size = 0) : static_buffer_size(_static_size){}
+-  ~static_test_mode() {}
+-  double get_buffer_size() override {
+-    return static_buffer_size;
+-  }
+-private:
+-  double static_buffer_size;
+-};
+-
+-class range_test_mode : public test_mode_buffer_size {
+-public:
+-  range_test_mode(srs_du::du_test_config::test_ue_config _test_ue):
+-  test_ue(_test_ue){
+-    min_buffer_size = test_ue.min_buffer_size;
+-    max_buffer_size = test_ue.max_buffer_size;
+-    buffer_interval = test_ue.buffer_interval;
+-    buffer_step = test_ue.buffer_step;
+-    // start_time = std::chrono::system_clock::now();
+-  }
+-  ~range_test_mode() {}
+-  unsigned min(unsigned x, unsigned y) { return x < y ? x : y; }
+-  double get_buffer_size() override {
+-    if(first_called){
+-      start_time = std::chrono::system_clock::now();
+-      first_called = false;
+-      return min_buffer_size;
+-    }
+-    std::chrono::system_clock::time_point current = std::chrono::system_clock::now();
+-    std::chrono::duration<unsigned> running_duration = std::chrono::duration_cast<std::chrono::duration<unsigned>>(current - start_time);
+-    return min(max_buffer_size,
+-               min_buffer_size +  running_duration.count() / buffer_interval * buffer_step);
+-  }
+-private:
+-  srs_du::du_test_config::test_ue_config test_ue;
+-  unsigned min_buffer_size, max_buffer_size, buffer_interval, buffer_step;
+-  std::chrono::system_clock::time_point start_time;
+-  bool first_called = true;
+-};
+-
+-class trace_test_mode : public test_mode_buffer_size{
+-public:
+-  trace_test_mode(std::string CSV_filename){
+-    std::ifstream csv_data(CSV_filename, std::ios::in);
+-    std::string line;
+-    if (!csv_data.is_open()) {
+-      std::exit(1);
+-    }
+-    std::istringstream sin;
+-    std::string word;
+-    std::getline(csv_data, line);
+-    int turn = 0;
+-    while (std::getline(csv_data, line)) {
+-        sin.clear();
+-        sin.str(line);
+-        while (std::getline(sin, word, ',')) {
+-            if(turn == 1){
+-                dl_brate_table.push_back(stod(word));
+-            }
+-            turn = (turn + 1) % 4;
+-        }
+-    }
+-    csv_data.close();
+-    counter = 0;
+-    total_num = dl_brate_table.size();
+-  }
+-  ~trace_test_mode() {}
+-
+-  double get_buffer_size() override {
+-    double ret = 7.537320046522576e-05 * dl_brate_table[counter] + 539.8745777874028;
+-    if(first_called){
+-      start_time = std::chrono::system_clock::now();
+-      first_called = false;
+-    }
+-    std::chrono::system_clock::time_point current = std::chrono::system_clock::now();
+-    std::chrono::duration<unsigned> running_duration = std::chrono::duration_cast<std::chrono::duration<unsigned>>(current - start_time);
+-    counter = (running_duration.count()) % total_num;
+-    return ret;
+-  }
+-private:
+-  std::vector<double> dl_brate_table;
+-  unsigned counter;
+-  unsigned total_num;
+-  std::chrono::system_clock::time_point start_time;
+-  bool first_called = true;
+-};
+-
+ class mac_test_mode_adapter final : public mac_interface,
+                                     public mac_ue_control_information_handler,
+                                     public mac_ue_configurator,
+@@ -357,7 +253,6 @@ private:
+   std::vector<std::unique_ptr<mac_test_mode_cell_adapter>> cell_info_handler;
+ 
+   test_ue_info_manager ue_info_mgr;
+-  std::shared_ptr<test_mode_buffer_size> buffer_size_container;
+ };
+ 
+ } // namespace srsran
+diff --git a/lib/du_high/du_high_impl.cpp b/lib/du_high/du_high_impl.cpp
+index 379d3a02b..d9d8e0c00 100644
+--- a/lib/du_high/du_high_impl.cpp
++++ b/lib/du_high/du_high_impl.cpp
+@@ -127,7 +127,7 @@ du_high_impl::du_high_impl(const du_high_configuration& config_) :
+                                     *cfg.mac_p,
+                                     cfg.sched_cfg,
+                                     cfg.sched_ue_metrics_notifier ? *cfg.sched_ue_metrics_notifier : *metrics_notifier},
+-                                    cfg.test_cfg);
++                         cfg.test_cfg);
+   f1ap       = create_f1ap(*cfg.f1c_client,
+                      adapters->f1_to_du_notifier,
+                      cfg.exec_mapper->du_control_executor(),
+diff --git a/lib/phy/upper/channel_processors/pdsch_processor_concurrent_impl.cpp b/lib/phy/upper/channel_processors/pdsch_processor_concurrent_impl.cpp
+index 734477df7..1eeec44f6 100644
+--- a/lib/phy/upper/channel_processors/pdsch_processor_concurrent_impl.cpp
++++ b/lib/phy/upper/channel_processors/pdsch_processor_concurrent_impl.cpp
+@@ -25,7 +25,6 @@
+ #include "srsran/instrumentation/traces/du_traces.h"
+ #include "srsran/phy/support/resource_grid_mapper.h"
+ #include "srsran/support/event_tracing.h"
+-#include <chrono>
+ 
+ using namespace srsran;
+ 
+@@ -317,14 +316,12 @@ void pdsch_processor_concurrent_impl::fork_cb_batches()
+ 
+     // Try to execute task asynchronously.
+     bool successful = false;
+-    //fmt::print("processing codeblock tasks\n");
+     if (nof_cb_batches != 0) {
+       successful = executor.execute(async_task);
+     }
+ 
+     // Execute task locally if it was not enqueued.
+     if (!successful) {
+-      fmt::print("processing codeblock tasks locally\n");
+       async_task();
+     }
+ 
+diff --git a/lib/support/executors/task_worker_pool.cpp b/lib/support/executors/task_worker_pool.cpp
+index cf24025ef..201772768 100644
+--- a/lib/support/executors/task_worker_pool.cpp
++++ b/lib/support/executors/task_worker_pool.cpp
+@@ -22,9 +22,6 @@
+ 
+ #include "srsran/support/executors/task_worker_pool.h"
+ #include <future>
+-#include <mutex>
+-
+-std::mutex incre_mutex;
+ 
+ using namespace srsran;
+ 
+@@ -42,14 +39,6 @@ detail::base_worker_pool::base_worker_pool(unsigned
+     report_error_if_not(cpu_masks.size() == nof_workers_, "Wrong array of CPU masks provided");
+   }
+ 
+-  unsigned actual_workers = nof_workers_ / 2 ? nof_workers_ / 2 : 1;
+-  for(unsigned i = 0; i < nof_workers_; i++){
+-    is_yield.push_back(!(i >= actual_workers && (worker_pool_name.find("up_phy_dl") != std::string::npos || worker_pool_name.find("pusch") != std::string::npos)));
+-    // is_yield.push_back(true);
+-    cv.emplace_back(new std::condition_variable());
+-    mtx.emplace_back(new std::mutex());
+-  }
+-
+   // Task dispatched to workers of the pool.
+   for (unsigned i = 0; i != nof_workers_; ++i) {
+     if (cpu_masks.empty()) {
+@@ -69,13 +58,6 @@ bool detail::base_worker_pool::is_in_thread_pool() const
+                      [id = std::this_thread::get_id()](const unique_thread& t) { return t.get_id() == id; });
+ }
+ 
+-unsigned detail::base_worker_pool::update_id() {
+-  std::lock_guard<std::mutex> lock(incre_mutex);
+-  id++;
+-  //fmt::print("update_id is called by <{}>, the current id is ---> {}\n", this->pool_name, id); 
+-  return id;
+-}
+-
+ // //////////////////////////
+ 
+ priority_task_worker_pool::priority_task_worker_pool(std::string                           worker_pool_name,
+@@ -183,12 +165,6 @@ task_worker_pool<QueuePolicy>::~task_worker_pool()
+ template <concurrent_queue_policy QueuePolicy>
+ void task_worker_pool<QueuePolicy>::stop()
+ {
+-  if(!stop_flag.load(std::memory_order_relaxed)){
+-    stop_flag.store(true);
+-    if(check_loop.joinable()){
+-      check_loop.join();
+-    }
+-  }
+   unsigned count = 0;
+   for (unique_thread& w : worker_threads) {
+     if (w.running()) {
+@@ -204,73 +180,12 @@ template <concurrent_queue_policy QueuePolicy>
+ std::function<void()> task_worker_pool<QueuePolicy>::create_pop_loop_task()
+ {
+   return [this]() {
+-    const int index = this->update_id();
+-    std::unique_lock <std::mutex> lck(*mtx[index - 1]);
+-    fmt::print("Pool name:{} - ID in pop loop task is {}, yield state is {}\n", this->pool_name, index, this->is_yield[index - 1]);
+-    // this->update_id();
+-    // fmt::print("Pool name:{} - ID in pop loop task is {}\n", this->pool_name, index);
+     unique_task job;
+     while (true) {
+-      while(!is_yield[index - 1]){
+-        cv[index - 1]->wait(lck);
+-      }
+-
+       if (not this->queue.pop_blocking(job)) {
+         break;
+       }
+-      if(check_poolname()){
+-        auto now = std::chrono::system_clock::now();
+-        job.set_processing_time(std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
+-      }
+       job();
+-      if(check_poolname()){
+-        auto now = std::chrono::system_clock::now();
+-        auto t = std::chrono::system_clock::to_time_t(now);
+-        job.set_end_processing_time(std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
+-        if(this->pool_name.find("up_phy_dl") != std::string::npos){
+-          dl_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "task finished execution, ";
+-          dl_logfile_stream << "wait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, ";
+-          dl_logfile_stream << "execute time is " << job.get_end_processing_time() - job.get_processing_time() << "us" << std::endl;
+-          dl_logfile_stream << "push_task time is " << job.get_in_queue_time() << std::endl;
+-        }
+-        else{
+-          pusch_logfile_stream << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << " " << "task finished execution, ";
+-          pusch_logfile_stream << "wait time is " << job.get_processing_time() - job.get_in_queue_time() << "us, ";
+-          pusch_logfile_stream << "execute time is " << job.get_end_processing_time() - job.get_processing_time() << "us" << std::endl;
+-          pusch_logfile_stream << "push_task time is " << job.get_in_queue_time() << std::endl;
+-        }
+-        
+-        recorder.update_exec_time(job.get_end_processing_time() - job.get_processing_time());
+-        recorder.update_wait_time(job.get_processing_time() - job.get_in_queue_time());
+-        recorder.update_pop_time(job.get_processing_time());
+-        recorder.update_length(this->nof_pending_tasks());
+-      }
+-    }
+-  };
+-
+-}
+-
+-template <concurrent_queue_policy QueuePolicy>
+-std::function<void()> task_worker_pool<QueuePolicy>::check_status()
+-{
+-  return [this]() {
+-    auto current = std::chrono::system_clock::now();
+-    unsigned cnt = (nof_workers() == 1 ? nof_workers() : nof_workers() / 2);
+-    while(!stop_flag.load(std::memory_order_relaxed)){
+-      //fmt::print("entering up phy dl loop, {}\n", stop_flag.load());
+-      auto now = std::chrono::system_clock::now();
+-      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(now - current);
+-
+-      //fmt::print("{}\n", duration.count());
+-      if(duration.count() >= 50){
+-        if(recorder.len_incre > 5 && cnt < nof_workers()){
+-          thread_force_wake(cnt);
+-          fmt::print("thread {} wake up\n", ++cnt);
+-        }
+-        //auto t = std::chrono::system_clock::to_time_t(now);
+-        //std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S") << std::endl;
+-        current = now;
+-      } 
+     }
+   };
+ }
+@@ -325,22 +240,6 @@ void task_worker_pool<QueuePolicy>::wait_pending_tasks()
+   cvar_caller_return.wait(lock, [&counter_caller]() { return counter_caller == 0; });
+ }
+ 
+-template <concurrent_queue_policy QueuePolicy>
+-void task_worker_pool<QueuePolicy>::thread_force_sleep(unsigned index)
+-{
+-  report_fatal_error_if_not(index < is_yield.size() && index >= 0, "Index of threads must be smaller than number of workers and greater than 0");
+-  is_yield[index] = is_yield[index] & false;
+-}
+-
+-template <concurrent_queue_policy QueuePolicy>
+-void task_worker_pool<QueuePolicy>::thread_force_wake(unsigned index)
+-{
+-  report_fatal_error_if_not(index < is_yield.size() && index >= 0, "Index of threads must be smaller than number of workers and greater than 0");
+-  std::unique_lock <std::mutex> lck(*(this->mtx[index]));
+-  is_yield[index] = is_yield[index] | true;
+-  this->cv[index]->notify_all();
+-}
+-
+ // Explicit specializations of the task_worker_pool.
+ template class srsran::task_worker_pool<concurrent_queue_policy::lockfree_mpmc>;
+ template class srsran::task_worker_pool<concurrent_queue_policy::locking_mpmc>;
+diff --git a/lib/support/executors/unique_thread.cpp b/lib/support/executors/unique_thread.cpp
+index a8b0a3e7f..88f93ae31 100644
+--- a/lib/support/executors/unique_thread.cpp
++++ b/lib/support/executors/unique_thread.cpp
+@@ -159,7 +159,6 @@ std::thread unique_thread::make_thread(const std::string&               name,
+   // Launch thread.
+   return std::thread([name, prio, cpu_mask, callable = std::move(callable)]() {
+     std::string fixed_name = name;
+-    //fmt::print("ID in make thread is {}\n", fixed_name);
+ 
+     // Truncate the thread name if it exceeds the maximum length.
+     static const unsigned MAX_THREADNAME_LEN = 15;
+diff --git a/test b/test
+deleted file mode 100755
+index 58c408430..000000000
+Binary files a/test and /dev/null differ
+diff --git a/test.cpp b/test.cpp
+deleted file mode 100644
+index cc6c733db..000000000
+--- a/test.cpp
++++ /dev/null
+@@ -1,33 +0,0 @@
+-#include <iostream>
+-#include <memory>
+-using namespace std;
+-
+-class A {
+-public:
+-    virtual ~A() = default;
+-    virtual void F() = 0;
+-};
+-
+-class B : public A {
+-public:
+-    B(){}
+-    ~B(){}
+-    void F() override{ cout<<0<<endl;}
+-};
+-
+-class C {
+-public:
+-    C(){
+-        objA = make_unique<B>();
+-    }
+-    unique_ptr<A> objA;
+-    void print(){
+-        cout<<"c"<<endl;
+-    }
+-};
+-int main()
+-{
+-    C c;
+-    c.print();
+-    return 0;
+-}
+\ No newline at end of file

@@ -2453,21 +2453,21 @@ static void manage_ntn_optional(CLI::App&             app,
   }
 }
 
-static void manage_expert_execution_threads(CLI::App& app, gnb_appconfig& gnb_cfg)
-{
-  if (!variant_holds_alternative<ru_sdr_appconfig>(gnb_cfg.ru_cfg)) {
-    return;
-  }
+// static void manage_expert_execution_threads(CLI::App& app, gnb_appconfig& gnb_cfg)
+// {
+//   if (!variant_holds_alternative<ru_sdr_appconfig>(gnb_cfg.ru_cfg)) {
+//     return;
+//   }
 
-  // Ignore the default settings based in the number of CPU cores for ZMQ.
-  if (variant_get<ru_sdr_appconfig>(gnb_cfg.ru_cfg).device_driver == "zmq") {
-    upper_phy_threads_appconfig& upper = gnb_cfg.expert_execution_cfg.threads.upper_threads;
-    upper.nof_pusch_decoder_threads    = 0;
-    upper.nof_ul_threads               = 1;
-    upper.nof_dl_threads               = 1;
-    gnb_cfg.expert_execution_cfg.threads.lower_threads.execution_profile = lower_phy_thread_profile::blocking;
-  }
-}
+//   // Ignore the default settings based in the number of CPU cores for ZMQ.
+//   if (variant_get<ru_sdr_appconfig>(gnb_cfg.ru_cfg).device_driver == "zmq") {
+//     upper_phy_threads_appconfig& upper = gnb_cfg.expert_execution_cfg.threads.upper_threads;
+//     upper.nof_pusch_decoder_threads    = 1;
+//     upper.nof_ul_threads               = 1;
+//     upper.nof_dl_threads               = 1;
+//     gnb_cfg.expert_execution_cfg.threads.lower_threads.execution_profile = lower_phy_thread_profile::quad;
+//   }
+// }
 
 /// Sets the request headroom size to the max processing delay value if the request headroom property was not parsed,
 static void manage_max_request_headroom_size(CLI::App& app, gnb_appconfig& gnb_cfg)
@@ -2694,6 +2694,6 @@ void srsran::configure_cli11_with_gnb_appconfig_schema(CLI::App& app, gnb_parsed
     manage_hal_optional(app, gnb_cfg);
     manage_ntn_optional(app, gnb_cfg, epoch_time, orbital_coordinates, ecef_coordinates);
     manage_processing_delay(app, gnb_cfg);
-    manage_expert_execution_threads(app, gnb_cfg);
+    // manage_expert_execution_threads(app, gnb_cfg);
   });
 }

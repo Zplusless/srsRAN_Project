@@ -25,6 +25,7 @@
 #include "srsran/mac/mac_cell_result.h"
 #include "srsran/ran/pdsch/pdsch_constants.h"
 #include "srsran/support/async/execute_on.h"
+#include "../../du_high/adapters/timestamp_logger.h"
 
 using namespace srsran;
 
@@ -209,7 +210,11 @@ void mac_cell_processor::handle_slot_indication_impl(slot_point sl_tx)
 
     // Assemble MAC DL scheduling request that is going to be passed to the PHY.
     assemble_dl_sched_request(mac_dl_res, sl_tx, cell_cfg.cell_index, sl_res.dl);
-
+    auto now = std::chrono::system_clock::now();
+    auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+  
+    // 记录时间戳
+    TimestampLogger::getInstance().log_timestamp("PHY_Before", timestamp);
     // Send DL sched result to PHY.
     phy_cell.on_new_downlink_scheduler_results(mac_dl_res);
 

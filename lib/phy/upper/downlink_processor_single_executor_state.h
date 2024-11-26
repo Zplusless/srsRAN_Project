@@ -23,6 +23,9 @@
 #pragma once
 
 #include "srsran/support/srsran_assert.h"
+#include "srsran/instrumentation/traces/du_traces.h"
+#include "../../du_high/adapters/timestamp_logger.h"
+#include "../../support/thread_controller.cpp"
 
 namespace srsran {
 
@@ -37,6 +40,8 @@ public:
     // Do nothing.
   }
 
+  long create_time;
+  long finish_time;
   /// Possible states of the downlink proecsosr.
   enum class states {
     /// The processor is ready for a new resource grid.
@@ -81,6 +86,10 @@ public:
   {
     srsran_assert(
         (state == states::processing), "DL processor task created in an invalid state, i.e., {}.", to_string(state));
+    if(pending_pdus == 0) {
+      create_time = std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::system_clock::now().time_since_epoch()).count();
+    }
     increase_pending_pdus();
   }
 
@@ -90,7 +99,15 @@ public:
   bool on_task_completion()
   {
     decrease_pending_pdus();
-    return (state == states::finishing) && (pending_pdus == 0);
+    bool flag = (state == states::finishing) && (pending_pdus == 0);
+    if(flag) {
+        finish_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        // 同时记录开始和结束时间戳
+        TimestampLogger::getInstance().log_timestamp("PDSCH task Create_Time", create_time, "PDSCH task Finish_Time", finish_time);
+        dl_thread_controller::getInstance().update_task_time(create_time, finish_time);
+    }
+    return flag;
   }
 
   /// Checks wether the current state allows for a new resource grid to be configured.

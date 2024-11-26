@@ -507,7 +507,7 @@ void phy_test_mode_adapter::phy_cell::on_new_downlink_scheduler_results(const ma
   ptr->on_new_downlink_scheduler_results(dl_res);
 }
 void phy_test_mode_adapter::phy_cell::on_new_downlink_data(const mac_dl_data_result& dl_data)
-{
+{  
   ptr->on_new_downlink_data(dl_data);
 }
 void phy_test_mode_adapter::phy_cell::on_new_uplink_scheduler_results(const mac_ul_sched_result& ul_res)

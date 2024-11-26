@@ -308,6 +308,8 @@ void pdsch_processor_concurrent_impl::fork_cb_batches()
         // Decrement asynchronous task counter.
         if (async_task_counter.fetch_sub(1) == 1) {
           // Notify end of the processing.
+          // auto now = std::chrono::system_clock::now();
+          // fmt::print("finish: {}\n", std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
           notifier->on_finish_processing();
         }
       }
